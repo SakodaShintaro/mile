@@ -5,7 +5,7 @@ RUN apt update && apt install -y sudo language-pack-ja-base language-pack-ja
 ENV LANG='ja_JP.UTF-8'
 
 # 必要なもののインストール
-RUN apt install -y vim
+RUN apt install -y vim xterm
 RUN pip3 install timm
 
 # WORKDIRを設定

@@ -17,6 +17,6 @@ docker run -it \
 --env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
 --env TERM=xterm-256color \
 --volume /tmp/.X11-unix/:/tmp/.X11-unix \
---volume $HOME/data:$HOME/data \
+--volume $HOME/data:/root/data \
 --name $CONTAINER_NAME \
 $IMAGE_NAME bash
