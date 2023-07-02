@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'mile'
+package_name = 'mile_pkg'
 
 setup(
     name=package_name,
@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Shintaro Sakoda',
-    maintainer_email='shintaro.sakoda@tier4.jp',
-    description='mile ros2',
+    maintainer='sakoda',
+    maintainer_email='sakoda@keio.jp',
+    description='MILE Package',
     license='MIT License',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            "mile_node = mile.main:main"
+            "mile_node = mile_pkg.main:main"
         ],
     },
 )
