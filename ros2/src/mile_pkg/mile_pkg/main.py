@@ -21,23 +21,16 @@ class MileNode(Node):
         self.timer = self.create_timer(0.1, self.on_tick)
 
         cfg = OmegaConf.load(conf_path)
-        print(f"step1 cfg = {cfg}")
-
         cfg = OmegaConf.to_container(cfg)
-        print(f"step2 cfg = {cfg}")
-
         cfg = get_cfg(cfg_dict=cfg)
-        print(f"step3 cfg = {cfg}")
+        self.get_logger().info(f"load config : {cfg}")
 
         model = Mile(cfg)
-
         checkpoint = torch.load(ckpt_path, map_location='cpu')['state_dict']
         checkpoint = {key[6:]: value for key, value in checkpoint.items() if key[:5] == 'model'}
-
         model.load_state_dict(checkpoint, strict=True)
         model.eval()
-        print(model)
-        print(f'Loaded weights')
+        self.get_logger().info(f"loaded weights")
 
         """
         Make dummy input following format
@@ -71,7 +64,6 @@ class MileNode(Node):
                 'bev_segmentation_1', 'bev_segmentation_2', 'bev_segmentation_4',
                 'posterior', 'prior', 'steering', 'throttle_brake'])
         """
-
 
     def on_tick(self):
         self.get_logger().info(f"Mile node")
