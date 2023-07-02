@@ -5,10 +5,10 @@ from rclpy.node import Node
 class MileNode(Node):
     def __init__(self):
         super().__init__("mile_node")
-        self.declare_parameter("ckpt_path")
+        self.declare_parameter("ckpt_path", "")
         self.ckpt_path = self.get_parameter("ckpt_path").value
-        self.get_logger().info(f"Ckpt path : {self.ckpt_path}")
-        assert self.ckpt_path is not None, "self.ckpt_path is None"
+        self.get_logger().info(f"ckpt path : {self.ckpt_path}")
+        assert self.ckpt_path, "self.ckpt_path is None"
 
         self.timer = self.create_timer(0.1, self.on_tick)
 
