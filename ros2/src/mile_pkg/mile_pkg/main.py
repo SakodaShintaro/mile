@@ -137,7 +137,7 @@ class MileNode(Node):
             except Exception as e:
                 self.get_logger().info(f"Exception transform: {e}")
                 return
-            WIDTH = 100
+            WIDTH = 50
             pixel_x = int((-transformed_pose.position.y +
                           WIDTH / 2) * self.W // (WIDTH))
             pixel_y = int((-transformed_pose.position.x + WIDTH)
