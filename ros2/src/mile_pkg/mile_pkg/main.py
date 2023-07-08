@@ -7,6 +7,7 @@ from mile.models.mile import Mile
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from autoware_auto_planning_msgs.msg import Trajectory
 
 
 class MileNode(Node):
@@ -76,6 +77,8 @@ class MileNode(Node):
         self.bridge = CvBridge()
         self.sub_image = self.create_subscription(
             Image, "/sensing/camera/traffic_light/image_raw", self.image_callback, qos_profile)
+        self.sub_trajectory = self.create_subscription(
+            Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
 
         self.ready_image = False
 
@@ -89,7 +92,7 @@ class MileNode(Node):
         self.get_logger().info(f"out.keys() = {out.keys()}")
 
     def image_callback(self, msg: Image):
-        self.get_logger().info(f"Subscribe Image")
+        # self.get_logger().info(f"Subscribe Image")
         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         ts_image = torch.tensor(cv_image)
         ts_image = ts_image.permute([2, 0, 1])
@@ -99,9 +102,12 @@ class MileNode(Node):
             ts_image, size=(self.H, self.W), mode="bilinear")
         ts_image = ts_image.unsqueeze(0)
         self.batch['image'] = ts_image
-        self.get_logger().info(f"Image Shape = {ts_image.shape}")
+        # self.get_logger().info(f"Image Shape = {ts_image.shape}")
         self.ready_image = True
         self.try_infer()
+
+    def trajectory_callback(self, msg: Trajectory):
+        self.get_logger().info(f"trajectory = {len(msg.points)}")
 
 
 def main(args=None):
