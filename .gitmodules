@@ -1,3 +1,6 @@
 [submodule "ros2/src/autoware_msgs"]
 	path = ros2/src/autoware_msgs
 	url = https://github.com/autowarefoundation/autoware_msgs.git
+[submodule "ros2/src/autoware_auto_msgs"]
+	path = ros2/src/autoware_auto_msgs
+	url = https://github.com/tier4/autoware_auto_msgs
