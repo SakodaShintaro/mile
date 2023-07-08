@@ -8,6 +8,9 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from autoware_auto_planning_msgs.msg import Trajectory
+from tf2_ros import TransformListener
+from tf2_ros.buffer import Buffer
+import tf2_geometry_msgs
 
 
 class MileNode(Node):
@@ -80,6 +83,9 @@ class MileNode(Node):
         self.sub_trajectory = self.create_subscription(
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
 
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
         self.ready_image = False
 
         self.get_logger().info(f"Ready")
@@ -104,10 +110,28 @@ class MileNode(Node):
         self.batch['image'] = ts_image
         # self.get_logger().info(f"Image Shape = {ts_image.shape}")
         self.ready_image = True
+        return
         self.try_infer()
 
     def trajectory_callback(self, msg: Trajectory):
         self.get_logger().info(f"trajectory = {len(msg.points)}")
+        # get transform map frame to base_link frame
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "base_link", "map", msg.header.stamp)
+            self.get_logger().info(f"transform = {transform}")
+        except Exception as e:
+            self.get_logger().info(f"Exception lookup_transform: {e}")
+            return
+        for point in msg.points:
+            point_pose = point.pose
+            try:
+                transformed_pose = tf2_geometry_msgs.do_transform_pose(point_pose, transform)
+                self.get_logger().info(
+                    f"transformed pose = ({transformed_pose.position.x:.2f}, {transformed_pose.position.y:.2f}, {transformed_pose.position.z:.2f})")
+            except Exception as e:
+                self.get_logger().info(f"Exception transform: {e}")
+                return
 
 
 def main(args=None):
