@@ -11,6 +11,7 @@ from autoware_auto_planning_msgs.msg import Trajectory
 from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
 import tf2_geometry_msgs
+import numpy as np
 
 
 class MileNode(Node):
@@ -82,6 +83,8 @@ class MileNode(Node):
             Image, "/sensing/camera/traffic_light/image_raw", self.image_callback, qos_profile)
         self.sub_trajectory = self.create_subscription(
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
+        self.pub_image = self.create_publisher(
+            Image, "/mile/route_map_image", qos_profile)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -123,15 +126,36 @@ class MileNode(Node):
         except Exception as e:
             self.get_logger().info(f"Exception lookup_transform: {e}")
             return
+        route_map_image = np.zeros((self.H, self.W), np.uint8)
         for point in msg.points:
             point_pose = point.pose
             try:
-                transformed_pose = tf2_geometry_msgs.do_transform_pose(point_pose, transform)
+                transformed_pose = tf2_geometry_msgs.do_transform_pose(
+                    point_pose, transform)
                 self.get_logger().info(
                     f"transformed pose = ({transformed_pose.position.x:.2f}, {transformed_pose.position.y:.2f}, {transformed_pose.position.z:.2f})")
             except Exception as e:
                 self.get_logger().info(f"Exception transform: {e}")
                 return
+            WIDTH = 100
+            pixel_x = int((-transformed_pose.position.y +
+                          WIDTH / 2) * self.W // (WIDTH))
+            pixel_y = int((-transformed_pose.position.x + WIDTH)
+                          * self.H // WIDTH)
+            if 0 <= pixel_x < self.W and 0 <= pixel_y < self.H:
+                route_map_image[pixel_y, pixel_x] = 255
+
+        # convert rgb
+        route_map_image = np.stack(
+            [route_map_image, route_map_image, route_map_image], axis=2)
+
+        # set to batch
+        self.batch['route_map'] = torch.tensor(route_map_image).permute(
+            [2, 0, 1]).unsqueeze(0).unsqueeze(0).to(torch.float32)
+
+        # publish
+        msg = self.bridge.cv2_to_imgmsg(route_map_image, "rgb8")
+        self.pub_image.publish(msg)
 
 
 def main(args=None):
