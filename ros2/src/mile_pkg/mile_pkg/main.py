@@ -31,7 +31,6 @@ class MileNode(Node):
         cfg = OmegaConf.load(conf_path)
         cfg = OmegaConf.to_container(cfg)
         cfg = get_cfg(cfg_dict=cfg)
-        self.get_logger().info(f"load config : {cfg}")
 
         self.model = Mile(cfg)
         checkpoint = torch.load(ckpt_path, map_location='cpu')['state_dict']
@@ -86,13 +85,13 @@ class MileNode(Node):
         self.sub_trajectory = self.create_subscription(
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
         self.pub_route_map_image = self.create_publisher(
-            Image, "/mile/route_map_image", qos_profile)
+            Image, "/mile/route_map_image", 10)
         self.pub_bev_instance_center_1 = self.create_publisher(
-            Image, "/mile/bev_instance_center_1", qos_profile)
+            Image, "/mile/bev_instance_center_1", 10)
         self.pub_bev_instance_offset_1 = self.create_publisher(
-            Image, "/mile/bev_instance_offset_1", qos_profile)
+            Image, "/mile/bev_instance_offset_1", 10)
         self.pub_bev_segmentation_1 = self.create_publisher(
-            Image, "/mile/bev_segmentation_1", qos_profile)
+            Image, "/mile/bev_segmentation_1", 10)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -128,15 +127,21 @@ class MileNode(Node):
         bev_instance_center_1 = out["bev_instance_center_1"]
         bev_instance_offset_1 = out["bev_instance_offset_1"]
         bev_segmentation_1 = out["bev_segmentation_1"]
-        self.get_logger().info(f"bev_instance_center_1 = {bev_instance_center_1.shape}")
-        self.get_logger().info(f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
-        self.get_logger().info(f"bev_segmentation_1 = {bev_segmentation_1.shape}")
+        self.get_logger().info(
+            f"bev_instance_center_1 = {bev_instance_center_1.shape}")
+        self.get_logger().info(
+            f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
+        self.get_logger().info(
+            f"bev_segmentation_1 = {bev_segmentation_1.shape}")
         bev_instance_center_1 = tensor_to_image(bev_instance_center_1)
         bev_instance_offset_1 = tensor_to_image(bev_instance_offset_1)
         bev_segmentation_1 = decode_segmap(bev_segmentation_1)
-        self.get_logger().info(f"bev_instance_center_1 = {bev_instance_center_1.shape}")
-        self.get_logger().info(f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
-        self.get_logger().info(f"bev_segmentation_1 = {bev_segmentation_1.shape}")
+        self.get_logger().info(
+            f"bev_instance_center_1 = {bev_instance_center_1.shape}")
+        self.get_logger().info(
+            f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
+        self.get_logger().info(
+            f"bev_segmentation_1 = {bev_segmentation_1.shape}")
         msg = self.bridge.cv2_to_imgmsg(bev_instance_center_1, "mono8")
         self.pub_bev_instance_center_1.publish(msg)
         # msg = self.bridge.cv2_to_imgmsg(bev_instance_offset_1, "mono8")
