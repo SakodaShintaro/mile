@@ -12,11 +12,13 @@ from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
 import tf2_geometry_msgs
 import numpy as np
+from mile_pkg.decode_func import tensor_to_image, decode_segmap
 
 
 class MileNode(Node):
     def __init__(self):
         super().__init__("mile_node")
+        self.get_logger().info(f"Initializing ...")
         self.declare_parameter("ckpt_path", "")
         self.declare_parameter("conf_path", "")
         ckpt_path = self.get_parameter("ckpt_path").value
@@ -83,8 +85,14 @@ class MileNode(Node):
             Image, "/sensing/camera/traffic_light/image_raw", self.image_callback, qos_profile)
         self.sub_trajectory = self.create_subscription(
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
-        self.pub_image = self.create_publisher(
+        self.pub_route_map_image = self.create_publisher(
             Image, "/mile/route_map_image", qos_profile)
+        self.pub_bev_instance_center_1 = self.create_publisher(
+            Image, "/mile/bev_instance_center_1", qos_profile)
+        self.pub_bev_instance_offset_1 = self.create_publisher(
+            Image, "/mile/bev_instance_offset_1", qos_profile)
+        self.pub_bev_segmentation_1 = self.create_publisher(
+            Image, "/mile/bev_segmentation_1", qos_profile)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -94,13 +102,52 @@ class MileNode(Node):
 
         self.get_logger().info(f"Ready")
 
+    @torch.no_grad()
     def try_infer(self):
         if not self.ready_image or not self.ready_route_map:
             return
         self.ready_image = False
         self.ready_route_map = False
         out = self.model(self.batch)
+        """
+        dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
+                'bev_instance_offset_1', 'bev_instance_offset_2', 'bev_instance_offset_4',
+                'bev_segmentation_1', 'bev_segmentation_2', 'bev_segmentation_4',
+                'posterior', 'prior', 'steering', 'throttle_brake'])
+        bev_instance_center_1 = torch.Size([1, 1, 1, 192, 192])
+        bev_instance_center_2 = torch.Size([1, 1, 1, 96, 96])
+        bev_instance_center_4 = torch.Size([1, 1, 1, 48, 48])
+        bev_instance_offset_1 = torch.Size([1, 1, 1, 192, 192])
+        bev_instance_offset_2 = torch.Size([1, 1, 1, 96, 96])
+        bev_instance_offset_4 = torch.Size([1, 1, 1, 48, 48])
+        bev_segmentation_1 = torch.Size([1, 1, 8, 192, 192])
+        bev_segmentation_2 = torch.Size([1, 1, 8, 96, 96])
+        bev_segmentation_4 = torch.Size([1, 1, 8, 48, 48])
+        """
         self.get_logger().info(f"out.keys() = {out.keys()}")
+        bev_instance_center_1 = out["bev_instance_center_1"]
+        bev_instance_offset_1 = out["bev_instance_offset_1"]
+        bev_segmentation_1 = out["bev_segmentation_1"]
+        self.get_logger().info(f"bev_instance_center_1 = {bev_instance_center_1.shape}")
+        self.get_logger().info(f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
+        self.get_logger().info(f"bev_segmentation_1 = {bev_segmentation_1.shape}")
+        bev_instance_center_1 = tensor_to_image(bev_instance_center_1)
+        bev_instance_offset_1 = tensor_to_image(bev_instance_offset_1)
+        bev_segmentation_1 = decode_segmap(bev_segmentation_1)
+        self.get_logger().info(f"bev_instance_center_1 = {bev_instance_center_1.shape}")
+        self.get_logger().info(f"bev_instance_offset_1 = {bev_instance_offset_1.shape}")
+        self.get_logger().info(f"bev_segmentation_1 = {bev_segmentation_1.shape}")
+        msg = self.bridge.cv2_to_imgmsg(bev_instance_center_1, "mono8")
+        self.pub_bev_instance_center_1.publish(msg)
+        # msg = self.bridge.cv2_to_imgmsg(bev_instance_offset_1, "mono8")
+        # self.pub_bev_instance_offset_1.publish(msg)
+        msg = self.bridge.cv2_to_imgmsg(bev_segmentation_1, "rgb8")
+        self.pub_bev_segmentation_1.publish(msg)
+        self.get_logger().info(f"posterior = {out['posterior'].keys()}")
+        self.get_logger().info(f"prior = {out['prior'].keys()}")
+        self.get_logger().info(f"steering = {out['steering'].shape}")
+        self.get_logger().info(
+            f"throttle_brake = {out['throttle_brake'].shape}")
 
     def image_callback(self, msg: Image):
         # self.get_logger().info(f"Subscribe Image")
@@ -154,7 +201,7 @@ class MileNode(Node):
 
         # publish
         msg = self.bridge.cv2_to_imgmsg(route_map_image, "rgb8")
-        self.pub_image.publish(msg)
+        self.pub_route_map_image.publish(msg)
         self.ready_route_map = True
         self.try_infer()
 
