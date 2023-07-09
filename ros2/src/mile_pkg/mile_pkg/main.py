@@ -90,13 +90,15 @@ class MileNode(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.ready_image = False
+        self.ready_route_map = False
 
         self.get_logger().info(f"Ready")
 
     def try_infer(self):
-        if not self.ready_image:
+        if not self.ready_image or not self.ready_route_map:
             return
         self.ready_image = False
+        self.ready_route_map = False
         out = self.model(self.batch)
         self.get_logger().info(f"out.keys() = {out.keys()}")
 
@@ -113,7 +115,6 @@ class MileNode(Node):
         self.batch['image'] = ts_image
         # self.get_logger().info(f"Image Shape = {ts_image.shape}")
         self.ready_image = True
-        return
         self.try_infer()
 
     def trajectory_callback(self, msg: Trajectory):
@@ -132,8 +133,6 @@ class MileNode(Node):
             try:
                 transformed_pose = tf2_geometry_msgs.do_transform_pose(
                     point_pose, transform)
-                self.get_logger().info(
-                    f"transformed pose = ({transformed_pose.position.x:.2f}, {transformed_pose.position.y:.2f}, {transformed_pose.position.z:.2f})")
             except Exception as e:
                 self.get_logger().info(f"Exception transform: {e}")
                 return
@@ -156,6 +155,8 @@ class MileNode(Node):
         # publish
         msg = self.bridge.cv2_to_imgmsg(route_map_image, "rgb8")
         self.pub_image.publish(msg)
+        self.ready_route_map = True
+        self.try_infer()
 
 
 def main(args=None):
