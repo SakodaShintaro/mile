@@ -14,8 +14,9 @@ import tf2_geometry_msgs
 import numpy as np
 from mile_pkg.decode_func import tensor_to_image, decode_segmap
 from mile.visualisation import add_action_gauges
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 from sensor_msgs.msg import CameraInfo
+from scipy.spatial.transform import Rotation
 
 
 class MileNode(Node):
@@ -91,6 +92,8 @@ class MileNode(Node):
             TwistStamped, "/localization/pose_twist_fusion_filter/twist", self.twist_callback, qos_profile)
         self.sub_camera_info = self.create_subscription(
             CameraInfo, "/sensing/camera/traffic_light/camera_info", self.camera_info_callback, qos_profile)
+        self.sub_pose = self.create_subscription(
+            PoseStamped, "/localization/pose_twist_fusion_filter/pose", self.pose_callback, qos_profile)
         self.pub_route_map_image = self.create_publisher(
             Image, "/mile/route_map_image", 10)
         self.pub_bev_instance_center_1 = self.create_publisher(
@@ -109,17 +112,23 @@ class MileNode(Node):
         self.ready_route_map = False
         self.ready_twist = False
         self.ready_camera_info = False
+        self.ready_pose = False
 
         self.get_logger().info(f"Ready")
 
     @torch.no_grad()
     def try_infer(self):
-        if not self.ready_image or not self.ready_route_map or not self.ready_twist or not self.ready_camera_info:
+        if not self.ready_image or \
+                not self.ready_route_map or \
+                not self.ready_twist or \
+                not self.ready_camera_info or \
+                not self.ready_pose:
             return
         self.ready_image = False
         self.ready_route_map = False
         self.ready_twist = False
         self.ready_camera_info = False
+        self.ready_pose = False
         out = self.model(self.batch)
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
@@ -239,6 +248,18 @@ class MileNode(Node):
         self.batch['intrinsics'] = torch.tensor(msg.k) \
             .to(torch.float32).reshape((1, 1, 3, 3))
         self.ready_camera_info = True
+        self.try_infer()
+
+    def pose_callback(self, msg: PoseStamped):
+        # 4x4行列に変換
+        pose = msg.pose
+        pose_mat = np.zeros((4, 4))
+        pose_mat[:3, :3] = Rotation.from_quat([pose.orientation.x, pose.orientation.y,
+                                               pose.orientation.z, pose.orientation.w]).as_matrix()
+        pose_mat[:3, 3] = [pose.position.x, pose.position.y, pose.position.z]
+        self.batch['extrinsics'] = torch.tensor(pose_mat). \
+            to(torch.float32).reshape((1, 1, 4, 4))
+        self.ready_pose = True
         self.try_infer()
 
 
