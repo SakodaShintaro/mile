@@ -15,6 +15,7 @@ import numpy as np
 from mile_pkg.decode_func import tensor_to_image, decode_segmap
 from mile.visualisation import add_action_gauges
 from geometry_msgs.msg import TwistStamped
+from sensor_msgs.msg import CameraInfo
 
 
 class MileNode(Node):
@@ -88,6 +89,8 @@ class MileNode(Node):
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
         self.sub_twist = self.create_subscription(
             TwistStamped, "/localization/pose_twist_fusion_filter/twist", self.twist_callback, qos_profile)
+        self.sub_camera_info = self.create_subscription(
+            CameraInfo, "/sensing/camera/traffic_light/camera_info", self.camera_info_callback, qos_profile)
         self.pub_route_map_image = self.create_publisher(
             Image, "/mile/route_map_image", 10)
         self.pub_bev_instance_center_1 = self.create_publisher(
@@ -105,16 +108,18 @@ class MileNode(Node):
         self.ready_image = False
         self.ready_route_map = False
         self.ready_twist = False
+        self.ready_camera_info = False
 
         self.get_logger().info(f"Ready")
 
     @torch.no_grad()
     def try_infer(self):
-        if not self.ready_image or not self.ready_route_map or not self.ready_twist:
+        if not self.ready_image or not self.ready_route_map or not self.ready_twist or not self.ready_camera_info:
             return
         self.ready_image = False
         self.ready_route_map = False
         self.ready_twist = False
+        self.ready_camera_info = False
         out = self.model(self.batch)
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
@@ -224,10 +229,16 @@ class MileNode(Node):
         self.try_infer()
 
     def twist_callback(self,  msg: TwistStamped):
-        self.get_logger().info(f"twist = {msg}")
-        self.batch['speed'] = torch.tensor(
-            [[msg.twist.linear.x]]).unsqueeze(0).unsqueeze(0).to(torch.float32)
+        self.get_logger().info(f"twist = {msg.twist.linear.x}")
+        self.batch['speed'] = torch.tensor([[msg.twist.linear.x]]).\
+            to(torch.float32).reshape((1, 1, 1))
         self.ready_twist = True
+        self.try_infer()
+
+    def camera_info_callback(self, msg: CameraInfo):
+        self.batch['intrinsics'] = torch.tensor(msg.k) \
+            .to(torch.float32).reshape((1, 1, 3, 3))
+        self.ready_camera_info = True
         self.try_infer()
 
 
