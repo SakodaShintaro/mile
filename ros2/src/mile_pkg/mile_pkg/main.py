@@ -14,6 +14,7 @@ import tf2_geometry_msgs
 import numpy as np
 from mile_pkg.decode_func import tensor_to_image, decode_segmap
 from mile.visualisation import add_action_gauges
+from geometry_msgs.msg import TwistStamped
 
 
 class MileNode(Node):
@@ -85,6 +86,8 @@ class MileNode(Node):
             Image, "/sensing/camera/traffic_light/image_raw", self.image_callback, qos_profile)
         self.sub_trajectory = self.create_subscription(
             Trajectory, "/planning/scenario_planning/trajectory", self.trajectory_callback, qos_profile)
+        self.sub_twist = self.create_subscription(
+            TwistStamped, "/localization/pose_twist_fusion_filter/twist", self.twist_callback, qos_profile)
         self.pub_route_map_image = self.create_publisher(
             Image, "/mile/route_map_image", 10)
         self.pub_bev_instance_center_1 = self.create_publisher(
@@ -101,15 +104,17 @@ class MileNode(Node):
 
         self.ready_image = False
         self.ready_route_map = False
+        self.ready_twist = False
 
         self.get_logger().info(f"Ready")
 
     @torch.no_grad()
     def try_infer(self):
-        if not self.ready_image or not self.ready_route_map:
+        if not self.ready_image or not self.ready_route_map or not self.ready_twist:
             return
         self.ready_image = False
         self.ready_route_map = False
+        self.ready_twist = False
         out = self.model(self.batch)
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
@@ -216,6 +221,13 @@ class MileNode(Node):
         msg = self.bridge.cv2_to_imgmsg(route_map_image, "rgb8")
         self.pub_route_map_image.publish(msg)
         self.ready_route_map = True
+        self.try_infer()
+
+    def twist_callback(self,  msg: TwistStamped):
+        self.get_logger().info(f"twist = {msg}")
+        self.batch['speed'] = torch.tensor(
+            [[msg.twist.linear.x]]).unsqueeze(0).unsqueeze(0).to(torch.float32)
+        self.ready_twist = True
         self.try_infer()
 
 
