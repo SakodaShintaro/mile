@@ -13,6 +13,7 @@ from tf2_ros.buffer import Buffer
 import tf2_geometry_msgs
 import numpy as np
 from mile_pkg.decode_func import tensor_to_image, decode_segmap
+from mile.visualisation import add_action_gauges
 
 
 class MileNode(Node):
@@ -92,6 +93,8 @@ class MileNode(Node):
             Image, "/mile/bev_instance_offset_1", 10)
         self.pub_bev_segmentation_1 = self.create_publisher(
             Image, "/mile/bev_segmentation_1", 10)
+        self.pub_control_image = self.create_publisher(
+            Image, "/mile/control_image", 10)
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
@@ -150,9 +153,14 @@ class MileNode(Node):
         self.pub_bev_segmentation_1.publish(msg)
         self.get_logger().info(f"posterior = {out['posterior'].keys()}")
         self.get_logger().info(f"prior = {out['prior'].keys()}")
-        self.get_logger().info(f"steering = {out['steering'].shape}")
+        self.get_logger().info(f"steering = {out['steering'].item()}")
         self.get_logger().info(
-            f"throttle_brake = {out['throttle_brake'].shape}")
+            f"throttle_brake = {out['throttle_brake'].item()}")
+        control_image = 255 * np.ones((70, 610, 3), np.uint8)
+        control_image = add_action_gauges(
+            control_image, out, 0, 0, [79, 171, 198])
+        msg = self.bridge.cv2_to_imgmsg(control_image, "rgb8")
+        self.pub_control_image.publish(msg)
 
     def image_callback(self, msg: Image):
         # self.get_logger().info(f"Subscribe Image")
