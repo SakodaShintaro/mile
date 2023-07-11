@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from mile.constants import BIRDVIEW_COLOURS
 
 
 def tensor_to_image(ts_image: torch.Tensor) -> np.ndarray:
@@ -18,14 +19,6 @@ def decode_segmap(x: torch.Tensor, nc=8) -> np.ndarray:
     """
     x: torch.Size([1, 1, 8, 192, 192])
     """
-    label_colors = np.array([(0, 0, 0),
-                             (128, 0, 0),
-                             (0, 128, 0),
-                             (128, 128, 0),
-                             (0, 0, 128),
-                             (128, 0, 128),
-                             (0, 128, 128),
-                             (128, 128, 128)])
 
     h, w = x.shape[3], x.shape[4]
     x = x.squeeze(0)
@@ -38,9 +31,9 @@ def decode_segmap(x: torch.Tensor, nc=8) -> np.ndarray:
 
     for l in range(0, nc):
         idx = (x == l)
-        r[idx] = label_colors[l, 0]
-        g[idx] = label_colors[l, 1]
-        b[idx] = label_colors[l, 2]
+        r[idx] = BIRDVIEW_COLOURS[l, 0]
+        g[idx] = BIRDVIEW_COLOURS[l, 1]
+        b[idx] = BIRDVIEW_COLOURS[l, 2]
 
     rgb = np.stack([r, g, b], axis=2)
     return rgb
