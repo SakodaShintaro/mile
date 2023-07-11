@@ -9,6 +9,7 @@ def tensor_to_image(ts_image: torch.Tensor) -> np.ndarray:
     """
     ts_image = ts_image.squeeze(0)
     ts_image = ts_image.squeeze(0)
+    ts_image = torch.rot90(ts_image, k=1, dims=[1, 2])
     ts_image = ts_image.permute([1, 2, 0])
     ts_image = ts_image.to(torch.uint8)
     image = ts_image.cpu().numpy()
@@ -23,6 +24,7 @@ def decode_segmap(x: torch.Tensor, nc=8) -> np.ndarray:
     h, w = x.shape[3], x.shape[4]
     x = x.squeeze(0)
     x = x.squeeze(0)
+    x = torch.rot90(x, k=1, dims=[1, 2])
     x = x.argmax(0)
 
     r = np.zeros((h, w)).astype(np.uint8)
