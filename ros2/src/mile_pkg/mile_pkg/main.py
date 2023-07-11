@@ -17,6 +17,7 @@ from mile.visualisation import add_action_gauges
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from sensor_msgs.msg import CameraInfo
 from scipy.spatial.transform import Rotation
+import cv2
 
 
 class MileNode(Node):
@@ -206,8 +207,7 @@ class MileNode(Node):
         except Exception as e:
             self.get_logger().info(f"Exception lookup_transform: {e}")
             return
-        route_map_image = np.zeros((self.H, self.W), np.uint8)
-        for point in msg.points:
+        def world_to_pixel(point):
             point_pose = point.pose
             try:
                 transformed_pose = tf2_geometry_msgs.do_transform_pose(
@@ -220,12 +220,17 @@ class MileNode(Node):
             OFFSET_Y = -(self.H / 2) / PIXELS_PER_METER
             pixel_x = int(PIXELS_PER_METER * (transformed_pose.position.x - OFFSET_X))
             pixel_y = int(PIXELS_PER_METER * (transformed_pose.position.y - OFFSET_Y))
-            if 0 <= pixel_x < self.W and 0 <= pixel_y < self.H:
-                route_map_image[pixel_y, pixel_x] = 255
+            return np.array([pixel_x, pixel_y])
+
+        route_mask = np.zeros([self.H, self.W], dtype=np.uint8)
+        route_in_pixel = np.array([[world_to_pixel(point)] for point in msg.points])
+        route_warped = route_in_pixel
+        cv2.polylines(route_mask, [np.round(route_warped).astype(np.int32)], False, 1, thickness=16)
+        route_mask = (route_mask.astype(np.bool) * 255).astype(np.uint8)
 
         # convert rgb
         route_map_image = np.stack(
-            [route_map_image, route_map_image, route_map_image], axis=2)
+            [route_mask, route_mask, route_mask], axis=2)
 
         # set to batch
         self.batch['route_map'] = torch.tensor(route_map_image).permute(
