@@ -215,11 +215,11 @@ class MileNode(Node):
             except Exception as e:
                 self.get_logger().info(f"Exception transform: {e}")
                 return
-            WIDTH = 50
-            pixel_x = int((-transformed_pose.position.y +
-                          WIDTH / 2) * self.W // (WIDTH))
-            pixel_y = int((-transformed_pose.position.x + WIDTH)
-                          * self.H // WIDTH)
+            PIXELS_PER_METER = 5
+            OFFSET_X = 0
+            OFFSET_Y = -(self.H / 2) / PIXELS_PER_METER
+            pixel_x = int(PIXELS_PER_METER * (transformed_pose.position.x - OFFSET_X))
+            pixel_y = int(PIXELS_PER_METER * (transformed_pose.position.y - OFFSET_Y))
             if 0 <= pixel_x < self.W and 0 <= pixel_y < self.H:
                 route_map_image[pixel_y, pixel_x] = 255
 
