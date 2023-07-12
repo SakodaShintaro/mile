@@ -246,6 +246,10 @@ class MileNode(Node):
         cv2.polylines(route_mask, [np.round(route_warped).astype(
             np.int32)], False, 1, thickness=16)
         route_mask = (route_mask.astype(np.bool) * 255).astype(np.uint8)
+        # flip up-down
+        route_mask = np.flipud(route_mask)
+        # rot 90
+        route_mask = np.rot90(route_mask)
 
         # convert rgb
         route_map_image = np.stack(
