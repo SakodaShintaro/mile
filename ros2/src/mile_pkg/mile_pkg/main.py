@@ -100,6 +100,8 @@ class MileNode(Node):
             CameraInfo, "/sensing/camera/traffic_light/camera_info", self.camera_info_callback, qos_profile)
         self.sub_pose = self.create_subscription(
             PoseStamped, "/localization/pose_twist_fusion_filter/pose", self.pose_callback, qos_profile)
+        self.pub_input_image = self.create_publisher(
+            Image, "/mile/input_image", 10)
         self.pub_route_map_image = self.create_publisher(
             Image, "/mile/route_map_image", 10)
         self.pub_bev_instance_center_1 = self.create_publisher(
@@ -201,6 +203,7 @@ class MileNode(Node):
         ts_image = ts_image.unsqueeze(0)
         self.batch['image'] = ts_image
         self.batch['image'] = self.normalize_image(self.batch['image'])
+        self.pub_input_image.publish(msg)
         self.ready_image = True
         self.try_infer()
 
