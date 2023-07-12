@@ -14,7 +14,7 @@ import tf2_geometry_msgs
 import numpy as np
 from mile_pkg.decode_func import tensor_to_image, decode_segmap
 from mile.visualisation import add_action_gauges
-from geometry_msgs.msg import TwistStamped, PoseStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped, AccelWithCovarianceStamped
 from sensor_msgs.msg import CameraInfo
 from scipy.spatial.transform import Rotation
 import cv2
@@ -93,6 +93,8 @@ class MileNode(Node):
             CameraInfo, "/sensing/camera/traffic_light/camera_info", self.camera_info_callback, qos_profile)
         self.sub_pose = self.create_subscription(
             PoseStamped, "/localization/pose_twist_fusion_filter/pose", self.pose_callback, qos_profile)
+        self.sub_accel = self.create_subscription(
+            AccelWithCovarianceStamped, "/localization/acceleration", self.accel_callback, qos_profile)
         self.pub_input_image = self.create_publisher(
             Image, "/mile/input_image", 10)
         self.pub_route_map_image = self.create_publisher(
@@ -114,6 +116,7 @@ class MileNode(Node):
         self.ready_twist = False
         self.ready_camera_info = False
         self.ready_pose = False
+        self.ready_accel = False
 
         self.get_logger().info(f"Ready")
 
@@ -123,13 +126,15 @@ class MileNode(Node):
                 not self.ready_route_map or \
                 not self.ready_twist or \
                 not self.ready_camera_info or \
-                not self.ready_pose:
+                not self.ready_pose or \
+                not self.ready_accel:
             return
         self.ready_image = False
         self.ready_route_map = False
         self.ready_twist = False
         self.ready_camera_info = False
         self.ready_pose = False
+        self.ready_accel = False
         out = self.model(self.batch)
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
@@ -252,7 +257,6 @@ class MileNode(Node):
         self.try_infer()
 
     def twist_callback(self,  msg: TwistStamped):
-        self.get_logger().info(f"twist = {msg.twist.linear.x}")
         self.batch['speed'] = torch.tensor([[msg.twist.linear.x]]).\
             to(torch.float32).reshape((1, 1, 1))
         self.ready_twist = True
@@ -274,6 +278,15 @@ class MileNode(Node):
         self.batch['extrinsics'] = torch.tensor(pose_mat). \
             to(torch.float32).reshape((1, 1, 4, 4))
         self.ready_pose = True
+        self.try_infer()
+
+    def accel_callback(self, msg: AccelWithCovarianceStamped):
+        accel = msg.accel.accel.linear.x
+        accel = np.clip(accel, -1, 1)
+        self.get_logger().info(f"accel = {accel}")
+        self.batch['throttle_brake'] = torch.tensor([accel]).\
+            to(torch.float32).reshape((1, 1, 1))
+        self.ready_accel = True
         self.try_infer()
 
 
