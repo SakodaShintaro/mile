@@ -8,6 +8,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from autoware_auto_planning_msgs.msg import Trajectory
+from autoware_auto_vehicle_msgs.msg import SteeringReport
 from tf2_ros import TransformListener
 from tf2_ros.buffer import Buffer
 import tf2_geometry_msgs
@@ -95,6 +96,8 @@ class MileNode(Node):
             PoseStamped, "/localization/pose_twist_fusion_filter/pose", self.pose_callback, qos_profile)
         self.sub_accel = self.create_subscription(
             AccelWithCovarianceStamped, "/localization/acceleration", self.accel_callback, qos_profile)
+        self.sub_steering = self.create_subscription(
+            SteeringReport, "/vehicle/status/steering_status", self.steering_callback, qos_profile)
         self.pub_input_image = self.create_publisher(
             Image, "/mile/input_image", 10)
         self.pub_route_map_image = self.create_publisher(
@@ -117,6 +120,7 @@ class MileNode(Node):
         self.ready_camera_info = False
         self.ready_pose = False
         self.ready_accel = False
+        self.ready_steering = False
 
         self.get_logger().info(f"Ready")
 
@@ -127,7 +131,8 @@ class MileNode(Node):
                 not self.ready_twist or \
                 not self.ready_camera_info or \
                 not self.ready_pose or \
-                not self.ready_accel:
+                not self.ready_accel or \
+                not self.ready_steering:
             return
         self.ready_image = False
         self.ready_route_map = False
@@ -135,6 +140,7 @@ class MileNode(Node):
         self.ready_camera_info = False
         self.ready_pose = False
         self.ready_accel = False
+        self.ready_steering = False
         out = self.model(self.batch)
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
@@ -287,6 +293,15 @@ class MileNode(Node):
         self.batch['throttle_brake'] = torch.tensor([accel]).\
             to(torch.float32).reshape((1, 1, 1))
         self.ready_accel = True
+        self.try_infer()
+
+    def steering_callback(self, msg: SteeringReport):
+        steering = msg.steering_tire_angle
+        steering = np.clip(steering, -1, 1)
+        self.get_logger().info(f"steering = {steering}")
+        self.batch['steering'] = torch.tensor([steering]).\
+            to(torch.float32).reshape((1, 1, 1))
+        self.ready_steering = True
         self.try_infer()
 
 
