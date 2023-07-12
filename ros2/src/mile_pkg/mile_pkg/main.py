@@ -76,13 +76,6 @@ class MileNode(Node):
         self.IMAGENET_STD = torch.tensor(
             (0.229, 0.224, 0.225)).view(1, 1, 3, 1, 1)
 
-        """
-        dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
-                'bev_instance_offset_1', 'bev_instance_offset_2', 'bev_instance_offset_4',
-                'bev_segmentation_1', 'bev_segmentation_2', 'bev_segmentation_4',
-                'posterior', 'prior', 'steering', 'throttle_brake'])
-        """
-
         # get from ros2 topic
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
