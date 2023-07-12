@@ -71,6 +71,11 @@ class MileNode(Node):
         self.H = 224
         self.W = 224
 
+        self.IMAGENET_MEAN = torch.tensor(
+            (0.485, 0.456, 0.406)).view(1, 1, 3, 1, 1)
+        self.IMAGENET_STD = torch.tensor(
+            (0.229, 0.224, 0.225)).view(1, 1, 3, 1, 1)
+
         """
         dict_keys(['bev_instance_center_1', 'bev_instance_center_2', 'bev_instance_center_4',
                 'bev_instance_offset_1', 'bev_instance_offset_2', 'bev_instance_offset_4',
@@ -182,8 +187,10 @@ class MileNode(Node):
         msg = self.bridge.cv2_to_imgmsg(control_image, "rgb8")
         self.pub_control_image.publish(msg)
 
+    def normalize_image(self, image_ts):
+        return (image_ts / 255.0 - self.IMAGENET_MEAN) / self.IMAGENET_STD
+
     def image_callback(self, msg: Image):
-        # self.get_logger().info(f"Subscribe Image")
         cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         ts_image = torch.tensor(cv_image)
         ts_image = ts_image.permute([2, 0, 1])
@@ -193,7 +200,7 @@ class MileNode(Node):
             ts_image, size=(self.H, self.W), mode="bilinear")
         ts_image = ts_image.unsqueeze(0)
         self.batch['image'] = ts_image
-        # self.get_logger().info(f"Image Shape = {ts_image.shape}")
+        self.batch['image'] = self.normalize_image(self.batch['image'])
         self.ready_image = True
         self.try_infer()
 
@@ -207,6 +214,7 @@ class MileNode(Node):
         except Exception as e:
             self.get_logger().info(f"Exception lookup_transform: {e}")
             return
+
         def world_to_pixel(point):
             point_pose = point.pose
             try:
@@ -218,14 +226,18 @@ class MileNode(Node):
             PIXELS_PER_METER = 5
             OFFSET_X = 0
             OFFSET_Y = -(self.H / 2) / PIXELS_PER_METER
-            pixel_x = int(PIXELS_PER_METER * (transformed_pose.position.x - OFFSET_X))
-            pixel_y = int(PIXELS_PER_METER * (transformed_pose.position.y - OFFSET_Y))
+            pixel_x = int(PIXELS_PER_METER *
+                          (transformed_pose.position.x - OFFSET_X))
+            pixel_y = int(PIXELS_PER_METER *
+                          (transformed_pose.position.y - OFFSET_Y))
             return np.array([pixel_x, pixel_y])
 
         route_mask = np.zeros([self.H, self.W], dtype=np.uint8)
-        route_in_pixel = np.array([[world_to_pixel(point)] for point in msg.points])
+        route_in_pixel = np.array([[world_to_pixel(point)]
+                                  for point in msg.points])
         route_warped = route_in_pixel
-        cv2.polylines(route_mask, [np.round(route_warped).astype(np.int32)], False, 1, thickness=16)
+        cv2.polylines(route_mask, [np.round(route_warped).astype(
+            np.int32)], False, 1, thickness=16)
         route_mask = (route_mask.astype(np.bool) * 255).astype(np.uint8)
 
         # convert rgb
@@ -235,6 +247,7 @@ class MileNode(Node):
         # set to batch
         self.batch['route_map'] = torch.tensor(route_map_image).permute(
             [2, 0, 1]).unsqueeze(0).unsqueeze(0).to(torch.float32)
+        self.batch['route_map'] = self.normalize_image(self.batch['route_map'])
 
         # publish
         msg = self.bridge.cv2_to_imgmsg(route_map_image, "rgb8")
